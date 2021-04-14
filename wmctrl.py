@@ -240,6 +240,23 @@ def get_window_desktop_id(disp, win):
     return None
 
 
+def list_window_props(disp):
+    client_list, client_list_size = get_client_list(disp)
+    props = (
+        (
+            client_list[i],
+            get_window_desktop_id(disp, client_list[i]),
+            get_window_class(disp, client_list[i]),
+            get_window_pid(disp, client_list[i]),
+            *get_window_geometry(disp, client_list[i])[:4],
+            get_window_client_name(disp, client_list[i]),
+            get_window_title(disp, client_list[i]),
+        )
+        for i in range(client_list_size // sizeof(Window))
+    )
+    return props
+
+
 def list_windows(disp):
     # TODO: print in table form
     client_list = WindowP()
