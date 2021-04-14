@@ -18,6 +18,7 @@ from ctypes import (
 )
 
 
+# TODO: parse command-line arguments
 VERBOSE = False
 SHOW_PID = True
 SHOW_GEOM = True
@@ -198,6 +199,7 @@ def get_window_pid(disp, win):
 
 
 def get_window_title(disp, win):
+    # TODO: use XFetchName for WM_NAME, get _NET_WM_NAME first if set
     result = get_property(disp, win, XA_STRING, "WM_NAME")
     if result:
         wm_name, _ = result
@@ -214,6 +216,7 @@ def get_window_title(disp, win):
 
 
 def get_window_class(disp, win):
+    # TODO: use XGetClassHint
     result = get_property(disp, win, XA_STRING, "WM_CLASS")
     if result:
         wm_class, size = result
