@@ -1,3 +1,4 @@
+# TODO: investigate if there's memory leak
 import sys
 from ctypes import (
     CDLL,
@@ -53,6 +54,9 @@ Success = 0
 BadWindow = 3
 BadAtom = 5
 BadValue = 2
+SubstructureRedirectMask = 1048576
+SubstructureNotifyMask = 524288
+ClientMessage = 33
 
 MAXLEN = 4096
 
@@ -109,28 +113,32 @@ xlib = CDLL("libX11.so")
 
 
 # Funcs
-Free = xlib.XFree
-Free.argtypes = [c_void_p]
-Free.restype = None
+XFree = xlib.XFree
+XFree.argtypes = [c_void_p]
+XFree.restype = None
 
-OpenDisplay = xlib.XOpenDisplay
-OpenDisplay.argtypes = [c_char_p]
-OpenDisplay.restype = DisplayP
+XOpenDisplay = xlib.XOpenDisplay
+XOpenDisplay.argtypes = [c_char_p]
+XOpenDisplay.restype = DisplayP
 
-CloseDisplay = xlib.XCloseDisplay
-CloseDisplay.argtypes = [DisplayP]
-CloseDisplay.restype = None
+XCloseDisplay = xlib.XCloseDisplay
+XCloseDisplay.argtypes = [DisplayP]
+XCloseDisplay.restype = None
 
-DefaultRootWindow = xlib.XDefaultRootWindow
-DefaultRootWindow.argtypes = [DisplayP]
-DefaultRootWindow.restype = Window
+XDefaultRootWindow = xlib.XDefaultRootWindow
+XDefaultRootWindow.argtypes = [DisplayP]
+XDefaultRootWindow.restype = Window
 
-InternAtom = xlib.XInternAtom
-InternAtom.argtypes = [DisplayP, c_char_p, Bool]
-InternAtom.restype = Atom
+XInternAtom = xlib.XInternAtom
+XInternAtom.argtypes = [DisplayP, c_char_p, Bool]
+XInternAtom.restype = Atom
 
-GetWindowProperty = xlib.XGetWindowProperty
-GetWindowProperty.argtypes = [
+XSendEvent = xlib.XSendEvent
+XSendEvent.argtypes = [DisplayP, Window, Bool, c_long, POINTER(XEvent)]
+XSendEvent.restype = Status
+
+XGetWindowProperty = xlib.XGetWindowProperty
+XGetWindowProperty.argtypes = [
     DisplayP,
     Window,
     Atom,
@@ -144,10 +152,10 @@ GetWindowProperty.argtypes = [
     POINTER(c_ulong),
     POINTER(POINTER(c_ubyte)),
 ]
-GetWindowProperty.restype = Status
+XGetWindowProperty.restype = Status
 
-GetGeometry = xlib.XGetGeometry
-GetGeometry.argtypes = [
+XGetGeometry = xlib.XGetGeometry
+XGetGeometry.argtypes = [
     DisplayP,
     Drawable,
     WindowP,
@@ -158,10 +166,10 @@ GetGeometry.argtypes = [
     POINTER(c_uint),
     POINTER(c_uint),
 ]
-GetGeometry.restype = Status
+XGetGeometry.restype = Status
 
-TranslateCoordinates = xlib.XTranslateCoordinates
-TranslateCoordinates.argtypes = [
+XTranslateCoordinates = xlib.XTranslateCoordinates
+XTranslateCoordinates.argtypes = [
     DisplayP,
     Window,
     Window,
@@ -171,7 +179,36 @@ TranslateCoordinates.argtypes = [
     POINTER(c_int),
     WindowP,
 ]
-TranslateCoordinates.restype = Bool
+XTranslateCoordinates.restype = Bool
+
+
+def client_msg(disp, win, msg, *data):
+    event = XEvent()
+    mask = SubstructureRedirectMask | SubstructureNotifyMask
+    event.xclient.type = ClientMessage
+    event.xclient.serial = 0
+    event.xclient.send_event = True
+    event.xclient.message_type = XInternAtom(disp, msg.encode("ascii"), False)
+    event.xclient.window = win
+    event.xclient.format = 32
+    event.xclient.data.l[0] = data[0]
+    event.xclient.data.l[1] = data[1]
+    event.xclient.data.l[2] = data[2]
+    event.xclient.data.l[3] = data[3]
+    event.xclient.data.l[4] = data[4]
+
+    result = XSendEvent(disp, XDefaultRootWindow(disp), False, mask, byref(event))
+    if result:
+        return event
+
+    print("Cannot send %s event.\n" % msg, file=sys.stderr)
+    return None
+
+
+def show_desktop(disp, state):
+    return client_msg(
+        disp, XDefaultRootWindow(disp), "_NET_SHOWING_DESKTOP", state, 0, 0, 0, 0
+    )
 
 
 def get_property(disp, win, xa_prop_type, prop_name):
@@ -181,7 +218,7 @@ def get_property(disp, win, xa_prop_type, prop_name):
     ret_bytes_after = c_ulong()
     ret_prop = POINTER(c_ubyte)()
 
-    xa_prop_name = InternAtom(disp, prop_name.encode(), True)
+    xa_prop_name = XInternAtom(disp, prop_name.encode(), True)
     if not (xa_prop_name):
         p_verbose(
             "{0} is not in the Host Portable Character Encoding".format(prop_name)
@@ -191,7 +228,7 @@ def get_property(disp, win, xa_prop_type, prop_name):
     # MAX_PROPERTY_VALUE_LEN / 4 explanation (XGetWindowProperty manpage):
     # long_length = Specifies the length in 32-bit multiples of the
     # data to be retrieved.
-    status = GetWindowProperty(
+    status = XGetWindowProperty(
         disp,
         win,
         xa_prop_name,
@@ -211,7 +248,7 @@ def get_property(disp, win, xa_prop_type, prop_name):
         return None
 
     if xa_ret_type.value != xa_prop_type.value:
-        Free(ret_prop)
+        XFree(ret_prop)
         p_verbose("Invalid type of {} property.".format(prop_name))
         return None
 
@@ -220,12 +257,12 @@ def get_property(disp, win, xa_prop_type, prop_name):
     memmove(ret, ret_prop, tmp_size)
     ret[tmp_size] = b"\x00"
 
-    Free(ret_prop)
+    XFree(ret_prop)
     return ret, tmp_size
 
 
 def get_client_list(disp):
-    root = DefaultRootWindow(disp)
+    root = XDefaultRootWindow(disp)
     result = get_property(disp, root, XA_WINDOW, "_NET_CLIENT_LIST")
     if result:
         client_list, size = result
@@ -261,7 +298,7 @@ def get_window_title(disp, win):
         if wm_name.value:
             return wm_name.value.decode("utf8")
 
-    xa_prop_type = Atom(InternAtom(disp, b"UTF8_STRING", False))
+    xa_prop_type = Atom(XInternAtom(disp, b"UTF8_STRING", False))
     result = get_property(disp, win, xa_prop_type, "_NET_WM_NAME")
     if result:
         net_wm_name, _ = result
@@ -307,7 +344,7 @@ def get_window_geometry(disp, win):
     bw = c_uint()
     depth = c_uint()
 
-    GetGeometry(
+    XGetGeometry(
         disp,
         win,
         byref(junkroot),
@@ -318,7 +355,7 @@ def get_window_geometry(disp, win):
         byref(bw),
         byref(depth),
     )
-    TranslateCoordinates(
+    XTranslateCoordinates(
         disp, win, junkroot, junkx, junky, byref(x), byref(y), byref(junkroot)
     )
     return x.value, y.value, wwidth.value, wheight.value, bw.value, depth.value
@@ -401,10 +438,11 @@ def list_windows(disp):
 
 
 if __name__ == "__main__":
-    display = OpenDisplay(None)
-    root = DefaultRootWindow(display)
+    display = XOpenDisplay(None)
+    root = XDefaultRootWindow(display)
 
     list_windows(display)
     list_window_props(display)
+    show_desktop(display, 1)
 
     xlib.XCloseDisplay(display)
