@@ -58,6 +58,10 @@ xlib = CDLL("libX11.so")
 
 
 # Funcs
+Free = xlib.XFree
+Free.argtypes = [c_void_p]
+Free.restype = None
+
 OpenDisplay = xlib.XOpenDisplay
 OpenDisplay.argtypes = [c_char_p]
 OpenDisplay.restype = DisplayP
@@ -156,7 +160,7 @@ def get_property(disp, win, xa_prop_type, prop_name):
         return None
 
     if xa_ret_type.value != xa_prop_type.value:
-        xlib.XFree(ret_prop)
+        Free(ret_prop)
         p_verbose("Invalid type of {} property.".format(prop_name))
         return None
 
@@ -165,7 +169,7 @@ def get_property(disp, win, xa_prop_type, prop_name):
     memmove(ret, ret_prop, tmp_size)
     ret[tmp_size] = b"\x00"
 
-    xlib.XFree(ret_prop)
+    Free(ret_prop)
     return ret, tmp_size
 
 
@@ -229,14 +233,52 @@ def get_window_desktop_id(disp, win):
     result = get_property(disp, win, XA_CARDINAL, "_NET_WM_DESKTOP")
     if result:
         desktop, _ = result
-        desktop = cast(desktop, POINTER(c_ulong))
-        return desktop.contents.value
+        desktop = cast(desktop, POINTER(c_ulong)).contents.value
+        return c_long(desktop).value if desktop else 0
 
     result = get_property(disp, win, XA_CARDINAL, "_WIN_WORKSPACE")
     if result:
         desktop, _ = result
-        desktop = cast(desktop, POINTER(c_ulong))
-        return desktop.contents.value
+        desktop = cast(desktop, POINTER(c_ulong)).contents.value
+        return c_long(desktop).value if desktop else 0
+    return None
+
+
+def get_window_geometry(disp, win):
+    junkroot = Window()
+    x = c_int()
+    y = c_int()
+    junkx = c_int()
+    junky = c_int()
+
+    wwidth = c_uint()
+    wheight = c_uint()
+    bw = c_uint()
+    depth = c_uint()
+
+    GetGeometry(
+        disp,
+        win,
+        byref(junkroot),
+        byref(junkx),
+        byref(junky),
+        byref(wwidth),
+        byref(wheight),
+        byref(bw),
+        byref(depth),
+    )
+    TranslateCoordinates(
+        disp, win, junkroot, junkx, junky, byref(x), byref(y), byref(junkroot)
+    )
+    return x.value, y.value, wwidth.value, wheight.value, bw.value, depth.value
+
+
+def get_window_client_name(disp, win):
+    # TODO: use XGetWMClientMachine
+    result = get_property(disp, win, XA_STRING, "WM_CLIENT_MACHINE")
+    if result:
+        client_machine, _ = result
+        return client_machine.value.decode("utf8")
     return None
 
 
@@ -258,9 +300,6 @@ def list_window_props(disp):
 
 
 def list_windows(disp):
-    # TODO: print in table form
-    client_list = WindowP()
-    i = c_int()
     max_client_machine_len = 0
     max_class_name_len = 0
 
@@ -281,37 +320,10 @@ def list_windows(disp):
         title_out = get_window_title(disp, client)
         class_out = get_window_class(disp, client)
         desktop = get_window_desktop_id(disp, client)
-        client_machine = get_property(disp, client, XA_STRING, "WM_CLIENT_MACHINE")
-        if client_machine:
-            client_machine, _ = client_machine
+        client_machine = get_window_client_name(disp, client)
         pid = get_window_pid(disp, client)
+        x, y, wwidth, wheight, _, _ = get_window_geometry(disp, client)
 
-        junkroot = Window()
-        x = c_int()
-        y = c_int()
-        junkx = c_int()
-        junky = c_int()
-
-        wwidth = c_uint()
-        wheight = c_uint()
-        bw = c_uint()
-        depth = c_uint()
-
-        GetGeometry(
-            disp,
-            client,
-            byref(junkroot),
-            byref(junkx),
-            byref(junky),
-            byref(wwidth),
-            byref(wheight),
-            byref(bw),
-            byref(depth),
-        )
-        TranslateCoordinates(
-            disp, client, junkroot, junkx, junky, byref(x), byref(y), byref(junkroot)
-        )
-        desktop = c_long(desktop).value if desktop else 0
         print("0x%.8lx %2ld" % (client, desktop), end="")
 
         if SHOW_PID:
@@ -319,8 +331,7 @@ def list_windows(disp):
 
         if SHOW_GEOM:
             print(
-                " %-4d %-4d %-4d %-4d"
-                % (x.value, y.value, wwidth.value, wheight.value),
+                " %-4d %-4d %-4d %-4d" % (x, y, wwidth, wheight),
                 end="",
             )
 
@@ -331,7 +342,7 @@ def list_windows(disp):
             " %*s %s\n"
             % (
                 max_client_machine_len,
-                client_machine.value.decode("utf8") or "N/A",
+                client_machine or "N/A",
                 title_out or "N/A",
             ),
             end="",
@@ -343,5 +354,6 @@ if __name__ == "__main__":
     root = DefaultRootWindow(display)
 
     list_windows(display)
+    list_window_props(display)
 
     xlib.XCloseDisplay(display)
