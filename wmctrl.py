@@ -217,7 +217,7 @@ def get_window_class(disp, win):
     result = get_property(disp, win, XA_STRING, "WM_CLASS")
     if result:
         wm_class, size = result
-        wm_class = b".".join(wm_class.value.split(b"\x00"))
+        wm_class = b".".join(wm_class.raw.split(b"\x00")[:2])
         return wm_class.decode("ascii")
     return None
 
@@ -238,6 +238,7 @@ def get_window_desktop_id(disp, win):
 
 
 def list_windows(disp):
+    # TODO: print in table form
     client_list = WindowP()
     i = c_int()
     max_client_machine_len = 0
