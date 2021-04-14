@@ -3,7 +3,11 @@ from ctypes import (
     CDLL,
     POINTER,
     byref,
+    Structure,
+    Union,
+    c_char,
     c_char_p,
+    c_short,
     c_int,
     c_long,
     c_ubyte,
@@ -51,6 +55,53 @@ BadAtom = 5
 BadValue = 2
 
 MAXLEN = 4096
+
+
+# Structs & Unions
+class XButtonEvent(Structure):
+    _fields_ = [
+        ("type", c_int),
+        ("serial", c_ulong),
+        ("send_event", Bool),
+        ("display", DisplayP),
+        ("window", Window),
+        ("root", Window),
+        ("subwindow", Window),
+        ("time", Time),
+        ("x", c_int),
+        ("y", c_int),
+        ("x_root", c_int),
+        ("y_root", c_int),
+        ("state", c_uint),
+        ("button", c_uint),
+        ("same_screen", Bool),
+    ]
+
+
+class _data(Union):
+    _fields_ = [("b", c_char * 20), ("s", c_short * 10), ("l", c_long * 5)]
+
+
+class XClientMessageEvent(Structure):
+    _fields_ = [
+        ("type", c_int),
+        ("serial", c_ulong),
+        ("send_event", Bool),
+        ("display", DisplayP),
+        ("window", Window),
+        ("message_type", Atom),
+        ("format", c_int),
+        ("data", _data),
+    ]
+
+
+class XEvent(Union):
+    _fields_ = [
+        ("type", c_int),
+        ("xbutton", XButtonEvent),
+        ("xclient", XClientMessageEvent),
+        ("pad", c_long * 24),
+    ]
 
 
 # Libs
