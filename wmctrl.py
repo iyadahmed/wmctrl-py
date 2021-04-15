@@ -44,6 +44,11 @@ Drawable = Window = XID
 WindowP = POINTER(Window)
 Status = Bool = c_int
 
+c_int_p = POINTER(c_int)
+c_uint_p = POINTER(c_uint)
+c_ulong_p = POINTER(c_ulong)
+c_ubyte_p = POINTER(c_ubyte)
+
 
 # Consts
 XA_CARDINAL = Atom(6)
@@ -147,10 +152,10 @@ XGetWindowProperty.argtypes = [
     Bool,
     Atom,
     AtomP,
-    POINTER(c_int),
-    POINTER(c_ulong),
-    POINTER(c_ulong),
-    POINTER(POINTER(c_ubyte)),
+    c_int_p,
+    c_ulong_p,
+    c_ulong_p,
+    POINTER(c_ubyte_p),
 ]
 XGetWindowProperty.restype = Status
 
@@ -159,12 +164,12 @@ XGetGeometry.argtypes = [
     DisplayP,
     Drawable,
     WindowP,
-    POINTER(c_int),
-    POINTER(c_int),
-    POINTER(c_uint),
-    POINTER(c_uint),
-    POINTER(c_uint),
-    POINTER(c_uint),
+    c_int_p,
+    c_int_p,
+    c_uint_p,
+    c_uint_p,
+    c_uint_p,
+    c_uint_p,
 ]
 XGetGeometry.restype = Status
 
@@ -175,8 +180,8 @@ XTranslateCoordinates.argtypes = [
     Window,
     c_int,
     c_int,
-    POINTER(c_int),
-    POINTER(c_int),
+    c_int_p,
+    c_int_p,
     WindowP,
 ]
 XTranslateCoordinates.restype = Bool
@@ -216,7 +221,7 @@ def get_property(disp, win, xa_prop_type, prop_name):
     ret_format = c_int()
     ret_nitems = c_ulong()
     ret_bytes_after = c_ulong()
-    ret_prop = POINTER(c_ubyte)()
+    ret_prop = c_ubyte_p()
 
     xa_prop_name = XInternAtom(disp, prop_name.encode(), True)
     if not (xa_prop_name):
@@ -285,7 +290,7 @@ def get_window_pid(disp, win):
     result = get_property(disp, win, XA_CARDINAL, "_NET_WM_PID")
     if result:
         prop, size = result
-        prop = cast(prop, POINTER(c_ulong))
+        prop = cast(prop, c_ulong_p)
         return prop.contents.value
     return None
 
@@ -321,13 +326,13 @@ def get_window_desktop_id(disp, win):
     result = get_property(disp, win, XA_CARDINAL, "_NET_WM_DESKTOP")
     if result:
         desktop, _ = result
-        desktop = cast(desktop, POINTER(c_ulong)).contents.value
+        desktop = cast(desktop, c_ulong_p).contents.value
         return c_long(desktop).value if desktop else 0
 
     result = get_property(disp, win, XA_CARDINAL, "_WIN_WORKSPACE")
     if result:
         desktop, _ = result
-        desktop = cast(desktop, POINTER(c_ulong)).contents.value
+        desktop = cast(desktop, c_ulong_p).contents.value
         return c_long(desktop).value if desktop else 0
     return None
 
