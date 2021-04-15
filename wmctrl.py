@@ -186,6 +186,10 @@ XTranslateCoordinates.argtypes = [
 ]
 XTranslateCoordinates.restype = Bool
 
+XFetchName = xlib.XFetchName
+XFetchName.argtypes = [DisplayP, Window, POINTER(c_char_p)]
+XFetchName.restype = Status
+
 
 def client_msg(disp, win, msg, *data):
     event = XEvent()
@@ -296,20 +300,22 @@ def get_window_pid(disp, win):
 
 
 def get_window_title(disp, win):
-    # TODO: use XFetchName for WM_NAME, get _NET_WM_NAME first if set
-    result = get_property(disp, win, XA_STRING, "WM_NAME")
-    if result:
-        wm_name, _ = result
-        if wm_name.value:
-            return wm_name.value.decode("utf8")
-
     xa_prop_type = Atom(XInternAtom(disp, b"UTF8_STRING", False))
     result = get_property(disp, win, xa_prop_type, "_NET_WM_NAME")
     if result:
-        net_wm_name, _ = result
-        return net_wm_name.value.decode("utf8")
+        title, _ = result
+        if title:
+            return title.value.decode("utf8")
 
-    return None
+    title = c_char_p()
+    result = XFetchName(disp, win, byref(title))
+    if result:
+        if title:
+            title_ascii = title.value.decode("ascii")
+            XFree(title)
+            return title_ascii
+
+    return "N/A"
 
 
 def get_window_class(disp, win):
@@ -436,7 +442,7 @@ def list_windows(disp):
             % (
                 max_client_machine_len,
                 client_machine or "N/A",
-                title_out or "N/A",
+                title_out,
             ),
             end="",
         )
@@ -447,7 +453,7 @@ if __name__ == "__main__":
     root = XDefaultRootWindow(display)
 
     list_windows(display)
-    list_window_props(display)
-    show_desktop(display, 1)
+    # list_window_props(display)
+    # show_desktop(display, 1)
 
     xlib.XCloseDisplay(display)
