@@ -10,7 +10,7 @@ A port of the wmctrl tool to Python ctypes, no extra dependencies, no subprocess
 #### Why?
 A. To practice calling C libs in Python ctypes <br>
 B. This is allows extending and improving on the original wmctrl <br>
-C. It servers as a great example for calling C libs from Python ctypes <br>
+C. It serves as a great example for calling C libs from Python ctypes <br>
 
 
 #### Sites that helped:
