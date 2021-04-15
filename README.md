@@ -5,7 +5,7 @@
 wmctrl(1) - Linux man page
 
 #### What is this?
-A port of the wmctrl tool to Python Ctypes, no extra dependencies, no subprocess calling
+A port of the wmctrl tool to Python ctypes, no extra dependencies, no subprocess calling
 
 #### Why?
 A. To practice calling C libs in Python ctypes <br>
