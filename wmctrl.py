@@ -122,6 +122,10 @@ class XTextProperty(Structure):
     ]
 
 
+class XClassHint(Structure):
+    _fields_ = [("res_name", c_char_p), ("res_class", c_char_p)]
+
+
 # Libs
 xlib = CDLL("libX11.so")
 
@@ -202,6 +206,10 @@ XFetchName.restype = Status
 XGetWMClientMachine = xlib.XGetWMClientMachine
 XGetWMClientMachine.argtypes = [DisplayP, Window, POINTER(XTextProperty)]
 XGetWMClientMachine.restype = Status
+
+XGetClassHint = xlib.XGetClassHint
+XGetClassHint.argtypes = [DisplayP, Window, POINTER(XClassHint)]
+XGetClassHint.restype = Status
 
 
 def client_msg(disp, win, msg, *data):
@@ -332,12 +340,11 @@ def get_window_title(disp, win):
 
 
 def get_window_class(disp, win):
-    # TODO: use XGetClassHint
-    result = get_property(disp, win, XA_STRING, "WM_CLASS")
+    ret = XClassHint()
+    result = XGetClassHint(disp, win, byref(ret))
     if result:
-        wm_class, _ = result
-        wm_class = b".".join(wm_class.raw.split(b"\x00")[:2])
-        return wm_class.decode("ascii")
+        wm_class = ret.res_name + b"." + ret.res_class
+        return wm_class.decode("utf8") or "N/A"
     return "N/A"
 
 
