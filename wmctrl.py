@@ -280,13 +280,8 @@ def get_property(disp, win, xa_prop_type, prop_name):
         p_verbose("Invalid type of {} property.".format(prop_name))
         return None
 
-    tmp_size = (ret_format.value // (32 // sizeof(c_long))) * ret_nitems.value
-    ret = create_string_buffer(tmp_size + 1)
-    memmove(ret, ret_prop, tmp_size)
-    ret[tmp_size] = b"\x00"
-
-    XFree(ret_prop)
-    return ret, tmp_size
+    size = (ret_format.value // (32 // sizeof(c_long))) * ret_nitems.value
+    return ret_prop, size
 
 
 def get_client_list(disp):
