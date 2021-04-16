@@ -385,11 +385,11 @@ def get_window_geometry(disp, win):
     return x.value, y.value, wwidth.value, wheight.value, bw.value, depth.value
 
 
-def get_window_client_name(disp, win):
+def get_window_client_machine(disp, win):
     prop = XTextProperty()
     XGetWMClientMachine(disp, win, byref(prop))
     name = bytes(prop.value[: prop.nitems])
-    return name.decode("ascii")
+    return name.decode("ascii") or "N/A"
 
 
 def list_window_props(disp):
@@ -401,7 +401,7 @@ def list_window_props(disp):
             get_window_class(disp, client_list[i]),
             get_window_pid(disp, client_list[i]),
             *get_window_geometry(disp, client_list[i])[:4],
-            get_window_client_name(disp, client_list[i]),
+            get_window_client_machine(disp, client_list[i]),
             get_window_title(disp, client_list[i]),
         )
         for i in range(client_list_size // sizeof(Window))
@@ -415,7 +415,7 @@ def list_windows(disp):
 
     client_list, client_list_size = get_client_list(disp)
     for i in range(client_list_size // sizeof(Window)):
-        client_machine = get_window_client_name(disp, client_list[i])
+        client_machine = get_window_client_machine(disp, client_list[i])
         max_client_machine_len = max(len(client_machine), max_client_machine_len)
 
         wm_class = get_window_class(disp, client_list[i])
@@ -427,7 +427,7 @@ def list_windows(disp):
         title_out = get_window_title(disp, client)
         class_out = get_window_class(disp, client)
         desktop = get_window_desktop_id(disp, client)
-        client_machine = get_window_client_name(disp, client)
+        client_machine = get_window_client_machine(disp, client)
         pid = get_window_pid(disp, client)
         x, y, wwidth, wheight, _, _ = get_window_geometry(disp, client)
 
@@ -449,7 +449,7 @@ def list_windows(disp):
             " %*s %s\n"
             % (
                 max_client_machine_len,
-                client_machine or "N/A",
+                client_machine,
                 title_out,
             ),
             end="",
