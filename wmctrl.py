@@ -16,9 +16,6 @@ from ctypes import (
     c_void_p,
     c_uint,
     cast,
-    create_string_buffer,
-    # create_unicode_buffer,
-    memmove,
     sizeof,
 )
 
@@ -281,6 +278,7 @@ def get_property(disp, win, xa_prop_type, prop_name):
         return None
 
     size = (ret_format.value // (32 // sizeof(c_long))) * ret_nitems.value
+    bytes(ret_prop[:size])
     return ret_prop, size
 
 
@@ -319,6 +317,7 @@ def get_window_title(disp, win):
     if result:
         title, _ = result
         if title:
+            title = cast(title, c_char_p)
             return title.value.decode("utf8")
 
     title = c_char_p()
