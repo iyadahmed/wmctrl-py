@@ -113,6 +113,15 @@ class XEvent(Union):
     ]
 
 
+class XTextProperty(Structure):
+    _fields_ = [
+        ("value", c_ubyte_p),
+        ("encoding", Atom),
+        ("format", c_int),
+        ("nitems", c_ulong),
+    ]
+
+
 # Libs
 xlib = CDLL("libX11.so")
 
@@ -189,6 +198,10 @@ XTranslateCoordinates.restype = Bool
 XFetchName = xlib.XFetchName
 XFetchName.argtypes = [DisplayP, Window, POINTER(c_char_p)]
 XFetchName.restype = Status
+
+XGetWMClientMachine = xlib.XGetWMClientMachine
+XGetWMClientMachine.argtypes = [DisplayP, Window, POINTER(XTextProperty)]
+XGetWMClientMachine.restype = Status
 
 
 def client_msg(disp, win, msg, *data):
@@ -373,12 +386,10 @@ def get_window_geometry(disp, win):
 
 
 def get_window_client_name(disp, win):
-    # TODO: use XGetWMClientMachine
-    result = get_property(disp, win, XA_STRING, "WM_CLIENT_MACHINE")
-    if result:
-        client_machine, _ = result
-        return client_machine.value.decode("utf8")
-    return None
+    prop = XTextProperty()
+    XGetWMClientMachine(disp, win, byref(prop))
+    name = bytes(prop.value[: prop.nitems])
+    return name.decode("ascii")
 
 
 def list_window_props(disp):
