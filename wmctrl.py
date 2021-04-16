@@ -17,7 +17,7 @@ from ctypes import (
     c_uint,
     cast,
     create_string_buffer,
-    create_unicode_buffer,
+    # create_unicode_buffer,
     memmove,
     sizeof,
 )
@@ -306,7 +306,7 @@ def get_client_list(disp):
 def get_window_pid(disp, win):
     result = get_property(disp, win, XA_CARDINAL, "_NET_WM_PID")
     if result:
-        prop, size = result
+        prop, _ = result
         prop = cast(prop, c_ulong_p)
         return prop.contents.value
     return None
@@ -335,7 +335,7 @@ def get_window_class(disp, win):
     # TODO: use XGetClassHint
     result = get_property(disp, win, XA_STRING, "WM_CLASS")
     if result:
-        wm_class, size = result
+        wm_class, _ = result
         wm_class = b".".join(wm_class.raw.split(b"\x00")[:2])
         return wm_class.decode("ascii")
     return None
@@ -415,15 +415,12 @@ def list_windows(disp):
 
     client_list, client_list_size = get_client_list(disp)
     for i in range(client_list_size // sizeof(Window)):
-        result = get_property(disp, client_list[i], XA_STRING, "WM_CLIENT_MACHINE")
-        if result:
-            client_machine, _ = result
-            client_machine_size = len(client_machine.value)
-            max_client_machine_len = max(client_machine_size, max_client_machine_len)
+        client_machine = get_window_client_name(disp, client_list[i])
+        max_client_machine_len = max(len(client_machine), max_client_machine_len)
 
         wm_class = get_window_class(disp, client_list[i])
         if wm_class:
-            max_class_name_len = max(max_class_name_len, len(wm_class))
+            max_class_name_len = max(len(wm_class), max_class_name_len)
 
     for i in range(client_list_size // sizeof(Window)):
         client = client_list[i]
