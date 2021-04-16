@@ -231,7 +231,7 @@ def client_msg(disp, win, msg, *data):
     if result:
         return event
 
-    print("Cannot send %s event.\n" % msg, file=sys.stderr)
+    print("Cannot send %s event." % msg, file=sys.stderr)
     return None
 
 
@@ -250,9 +250,7 @@ def get_property(disp, win, xa_prop_type, prop_name):
 
     xa_prop_name = XInternAtom(disp, prop_name.encode(), True)
     if not (xa_prop_name):
-        p_verbose(
-            "{0} is not in the Host Portable Character Encoding".format(prop_name)
-        )
+        p_verbose(f"{prop_name} is not in the Host Portable Character Encoding")
         return None
 
     # MAX_PROPERTY_VALUE_LEN / 4 explanation (XGetWindowProperty manpage):
@@ -395,8 +393,8 @@ def get_window_geometry(disp, win):
 def get_window_client_machine(disp, win):
     prop = XTextProperty()
     XGetWMClientMachine(disp, win, byref(prop))
-    name = bytes(prop.value[: prop.nitems])
-    return name.decode("ascii") or "N/A"
+    client_machine = cast(prop.value, c_char_p)
+    return client_machine.value.decode("ascii") or "N/A"
 
 
 def list_window_props(disp):
@@ -426,28 +424,28 @@ def list_windows(disp):
         max_client_machine_len = max(len(client_machine), max_client_machine_len)
 
         wm_class = get_window_class(disp, client_list[i])
-        if wm_class:
-            max_class_name_len = max(len(wm_class), max_class_name_len)
+        max_class_name_len = max(len(wm_class), max_class_name_len)
 
     for i in range(client_list_size // sizeof(Window)):
         client = client_list[i]
         title_out = get_window_title(disp, client)
-        class_out = get_window_class(disp, client)
         desktop = get_window_desktop_id(disp, client)
         client_machine = get_window_client_machine(disp, client)
-        pid = get_window_pid(disp, client)
-        x, y, wwidth, wheight, _, _ = get_window_geometry(disp, client)
 
         print("0x%.8lx %2ld" % (client, desktop), end="")
 
         if SHOW_PID:
-            print(" %-6lu" % pid, end="")
+            print(" %-6lu" % get_window_pid(disp, client), end="")
 
         if SHOW_GEOM:
-            print(" %-4d %-4d %-4d %-4d" % (x, y, wwidth, wheight), end="")
+            # x, y, width, height
+            print(
+                " %-4d %-4d %-4d %-4d" % get_window_geometry(disp, client)[:4], end=""
+            )
 
         if SHOW_CLASS:
-            print(" %-*s " % (max_class_name_len, class_out), end="")
+            class_out = get_window_class(disp, client)
+            print(" %-*s" % (max_class_name_len, class_out), end="")
 
         print(" %*s %s" % (max_client_machine_len, client_machine, title_out))
 
