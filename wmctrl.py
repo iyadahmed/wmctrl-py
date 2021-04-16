@@ -309,7 +309,7 @@ def get_window_pid(disp, win):
         prop, _ = result
         prop = cast(prop, c_ulong_p)
         return prop.contents.value
-    return None
+    return "N/A"
 
 
 def get_window_title(disp, win):
@@ -338,7 +338,7 @@ def get_window_class(disp, win):
         wm_class, _ = result
         wm_class = b".".join(wm_class.raw.split(b"\x00")[:2])
         return wm_class.decode("ascii")
-    return None
+    return "N/A"
 
 
 def get_window_desktop_id(disp, win):
@@ -434,26 +434,15 @@ def list_windows(disp):
         print("0x%.8lx %2ld" % (client, desktop), end="")
 
         if SHOW_PID:
-            print(" %-6lu" % (pid or 0), end="")
+            print(" %-6lu" % pid, end="")
 
         if SHOW_GEOM:
-            print(
-                " %-4d %-4d %-4d %-4d" % (x, y, wwidth, wheight),
-                end="",
-            )
+            print(" %-4d %-4d %-4d %-4d" % (x, y, wwidth, wheight), end="")
 
         if SHOW_CLASS:
-            print(" %-*s " % (max_class_name_len, class_out or "N/A"), end="")
+            print(" %-*s " % (max_class_name_len, class_out), end="")
 
-        print(
-            " %*s %s\n"
-            % (
-                max_client_machine_len,
-                client_machine,
-                title_out,
-            ),
-            end="",
-        )
+        print(" %*s %s" % (max_client_machine_len, client_machine, title_out))
 
 
 if __name__ == "__main__":
