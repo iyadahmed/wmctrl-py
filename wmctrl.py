@@ -270,17 +270,20 @@ def get_property(disp, win, xa_prop_type, prop_name):
     )
 
     if status != Success:
-        p_verbose("Cannot get {} property.".format(prop_name))
+        p_verbose(f"Cannot get {prop_name} property.")
         return None
 
     if xa_ret_type.value != xa_prop_type.value:
         XFree(ret_prop)
-        p_verbose("Invalid type of {} property.".format(prop_name))
+        p_verbose(f"Invalid type of {prop_name} property.")
         return None
 
     size = (ret_format.value // (32 // sizeof(c_long))) * ret_nitems.value
-    bytes(ret_prop[:size])
-    return ret_prop, size
+    if ret_prop:
+        return ret_prop, size
+
+    p_verbose(f"{prop_name} not found.")
+    return None
 
 
 def get_client_list(disp):
@@ -288,46 +291,43 @@ def get_client_list(disp):
     result = get_property(disp, root, XA_WINDOW, "_NET_CLIENT_LIST")
     if result:
         client_list, size = result
-        client_list = cast(client_list, WindowP)
-        return client_list, size
+        client_list = WindowP.from_buffer(client_list)
+        clients = client_list[: size // sizeof(WindowP)]
+        XFree(client_list)
+        return clients
 
     result = get_property(disp, root, XA_WINDOW, "_WIN_CLIENT_LIST")
     if result:
         client_list, size = result
-        client_list = cast(client_list, WindowP)
-        return client_list, size
-
-    p_verbose(
-        "Cannot get client list properties. \n" "(_NET_CLIENT_LIST or _WIN_CLIENT_LIST)"
-    )
+        if client_list:
+            client_list = WindowP.from_buffer(client_list)
+            clients = client_list[: size // sizeof(WindowP)]
+            XFree(client_list)
+            return clients
     return None
 
 
 def get_window_pid(disp, win):
     result = get_property(disp, win, XA_CARDINAL, "_NET_WM_PID")
     if result:
-        prop, _ = result
-        prop = cast(prop, c_ulong_p)
-        return prop.contents.value
+        prop = c_ulong_p.from_buffer(result[0])
+        pid = prop.contents.value
+        XFree(prop)
+        return pid
     return "N/A"
 
 
 def get_window_title(disp, win):
     xa_prop_type = Atom(XInternAtom(disp, b"UTF8_STRING", False))
     result = get_property(disp, win, xa_prop_type, "_NET_WM_NAME")
-    if result:
-        title, _ = result
-        if title:
-            title = cast(title, c_char_p)
-            return title.value.decode("utf8")
+    if not result:
+        result = get_property(disp, win, XA_STRING, "WM_NAME")
 
-    title = c_char_p()
-    result = XFetchName(disp, win, byref(title))
     if result:
-        if title:
-            title_ascii = title.value.decode("ascii")
-            XFree(title)
-            return title_ascii
+        prop = c_char_p.from_buffer(result[0])
+        title = prop.value.decode("utf8")
+        XFree(prop)
+        return title
 
     return "N/A"
 
@@ -337,21 +337,19 @@ def get_window_class(disp, win):
     result = XGetClassHint(disp, win, byref(ret))
     if result:
         wm_class = ret.res_name + b"." + ret.res_class
-        return wm_class.decode("utf8") or "N/A"
+        return wm_class.decode("ascii")
     return "N/A"
 
 
 def get_window_desktop_id(disp, win):
     result = get_property(disp, win, XA_CARDINAL, "_NET_WM_DESKTOP")
-    if result:
-        desktop, _ = result
-        desktop = cast(desktop, c_ulong_p).contents.value
-        return c_long(desktop).value if desktop else 0
+    if not result:
+        result = get_property(disp, win, XA_CARDINAL, "_WIN_WORKSPACE")
 
-    result = get_property(disp, win, XA_CARDINAL, "_WIN_WORKSPACE")
     if result:
-        desktop, _ = result
-        desktop = cast(desktop, c_ulong_p).contents.value
+        prop, _ = result
+        desktop = c_ulong_p.from_buffer(prop).contents.value
+        XFree(prop)
         return c_long(desktop).value if desktop else 0
     return None
 
@@ -388,41 +386,23 @@ def get_window_geometry(disp, win):
 def get_window_client_machine(disp, win):
     prop = XTextProperty()
     XGetWMClientMachine(disp, win, byref(prop))
-    client_machine = cast(prop.value, c_char_p)
+    client_machine = c_char_p.from_buffer(prop.value)
     return client_machine.value.decode("ascii") or "N/A"
-
-
-def list_window_props(disp):
-    client_list, client_list_size = get_client_list(disp)
-    props = (
-        (
-            client_list[i],
-            get_window_desktop_id(disp, client_list[i]),
-            get_window_class(disp, client_list[i]),
-            get_window_pid(disp, client_list[i]),
-            *get_window_geometry(disp, client_list[i])[:4],
-            get_window_client_machine(disp, client_list[i]),
-            get_window_title(disp, client_list[i]),
-        )
-        for i in range(client_list_size // sizeof(Window))
-    )
-    return props
 
 
 def list_windows(disp):
     max_client_machine_len = 0
     max_class_name_len = 0
 
-    client_list, client_list_size = get_client_list(disp)
-    for i in range(client_list_size // sizeof(Window)):
-        client_machine = get_window_client_machine(disp, client_list[i])
+    client_list = get_client_list(disp)
+    for client in client_list:
+        client_machine = get_window_client_machine(disp, client)
         max_client_machine_len = max(len(client_machine), max_client_machine_len)
 
-        wm_class = get_window_class(disp, client_list[i])
+        wm_class = get_window_class(disp, client)
         max_class_name_len = max(len(wm_class), max_class_name_len)
 
-    for i in range(client_list_size // sizeof(Window)):
-        client = client_list[i]
+    for client in client_list:
         title_out = get_window_title(disp, client)
         desktop = get_window_desktop_id(disp, client)
         client_machine = get_window_client_machine(disp, client)
@@ -450,7 +430,7 @@ if __name__ == "__main__":
     root = XDefaultRootWindow(display)
 
     list_windows(display)
-    # list_window_props(display)
-    # show_desktop(display, 1)
+    show_desktop(display, 1)
+    show_desktop(display, 0)
 
     xlib.XCloseDisplay(display)
