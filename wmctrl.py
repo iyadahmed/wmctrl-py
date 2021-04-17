@@ -210,6 +210,7 @@ XGetClassHint.restype = Status
 
 
 def client_msg(disp, win, msg, *data):
+    assert len(data) == 5
     event = XEvent()
     mask = SubstructureRedirectMask | SubstructureNotifyMask
     event.xclient.type = ClientMessage
