@@ -51,6 +51,8 @@ XA_CARDINAL = Atom(6)
 XA_STRING = Atom(31)
 XA_WINDOW = Atom(33)
 XA_STRING = Atom(31)
+XA_WM_NAME = Atom(39)
+XA_WM_ICON_NAME = Atom(37)
 Success = 0
 BadWindow = 3
 BadAtom = 5
@@ -58,6 +60,11 @@ BadValue = 2
 SubstructureRedirectMask = 1048576
 SubstructureNotifyMask = 524288
 ClientMessage = 33
+
+# XChangeProperty modes
+PropModeReplace = 0
+PropModePrepend = 1
+PropModeAppend = 2
 
 MAXLEN = 4096
 
@@ -168,6 +175,23 @@ XGetWindowProperty.argtypes = [
 ]
 XGetWindowProperty.restype = Status
 
+XChangeProperty = xlib.XChangeProperty
+XChangeProperty.argtypes = [
+    DisplayP,
+    Window,
+    Atom,
+    Atom,
+    c_int,
+    c_int,
+    c_char_p,
+    c_int,
+]
+XChangeProperty.restype = None
+
+XDeleteProperty = xlib.XDeleteProperty
+XDeleteProperty.argtypes = [DisplayP, Window, Atom]
+XDeleteProperty.restype = None
+
 XGetGeometry = xlib.XGetGeometry
 XGetGeometry.argtypes = [
     DisplayP,
@@ -258,6 +282,70 @@ def change_number_of_desktops(disp: "DisplayP", n: int) -> Union["XEvent", None]
 def switch_desktop(disp: "DisplayP", target: int) -> Union["XEvent", None]:
     root = XDefaultRootWindow(disp)
     return client_msg(disp, root, "_NET_CURRENT_DESKTOP", target, 0, 0, 0, 0)
+
+
+def set_window_title(disp: "DisplayP", win: "Window", title: str, mode: str) -> None:
+
+    title_local = None
+    title_utf8 = None
+    try:
+        title_local = title.encode("ascii")
+    except UnicodeEncodeError:
+        pass
+
+    title_utf8 = title.encode("utf8")
+
+    if mode in ("T", "N"):
+        if title_local:
+            XChangeProperty(
+                disp,
+                win,
+                XA_WM_NAME,
+                XA_STRING,
+                8,
+                PropModeReplace,
+                title_local,
+                len(title_local),
+            )
+        else:
+            XDeleteProperty(disp, win, XA_WM_NAME)
+
+        XChangeProperty(
+            disp,
+            win,
+            XInternAtom(disp, b"_NET_WM_NAME", False),
+            XInternAtom(disp, b"UTF8_STRING", False),
+            8,
+            PropModeReplace,
+            title_utf8,
+            len(title_utf8),
+        )
+
+    if mode in ("T", "I"):
+        if title_local:
+            XChangeProperty(
+                disp,
+                win,
+                XA_WM_ICON_NAME,
+                XA_STRING,
+                8,
+                PropModeReplace,
+                title_local,
+                len(title_local),
+            )
+        else:
+            XDeleteProperty(disp, win, XA_WM_ICON_NAME)
+
+        XChangeProperty(
+            disp,
+            win,
+            XInternAtom(disp, b"_NET_WM_ICON_NAME", False),
+            XInternAtom(disp, b"UTF8_STRING", False),
+            8,
+            PropModeReplace,
+            title_utf8,
+            len(title_utf8),
+        )
 
 
 def get_property(
@@ -460,5 +548,9 @@ if __name__ == "__main__":
 
     # change_number_of_desktops(display, 2)
     # switch_desktop(display, 1)
+
+    # Rename all windows to foo
+    for w in get_client_list(display):
+        set_window_title(display, w, "foo", "T")
 
     xlib.XCloseDisplay(display)
