@@ -1,11 +1,11 @@
-# TODO: investigate if there's memory leak
 import sys
+from typing import Tuple, Union, List
 from ctypes import (
     CDLL,
     POINTER,
     byref,
-    Structure,
-    Union,
+    Structure as CStruct,
+    Union as CUnion,
     c_char,
     c_char_p,
     c_short,
@@ -15,7 +15,6 @@ from ctypes import (
     c_ulong,
     c_void_p,
     c_uint,
-    cast,
     sizeof,
 )
 
@@ -64,7 +63,7 @@ MAXLEN = 4096
 
 
 # Structs & Unions
-class XButtonEvent(Structure):
+class XButtonEvent(CStruct):
     _fields_ = [
         ("type", c_int),
         ("serial", c_ulong),
@@ -84,11 +83,11 @@ class XButtonEvent(Structure):
     ]
 
 
-class _data(Union):
+class _data(CUnion):
     _fields_ = [("b", c_char * 20), ("s", c_short * 10), ("l", c_long * 5)]
 
 
-class XClientMessageEvent(Structure):
+class XClientMessageEvent(CStruct):
     _fields_ = [
         ("type", c_int),
         ("serial", c_ulong),
@@ -101,7 +100,7 @@ class XClientMessageEvent(Structure):
     ]
 
 
-class XEvent(Union):
+class XEvent(CUnion):
     _fields_ = [
         ("type", c_int),
         ("xbutton", XButtonEvent),
@@ -110,7 +109,7 @@ class XEvent(Union):
     ]
 
 
-class XTextProperty(Structure):
+class XTextProperty(CStruct):
     _fields_ = [
         ("value", c_ubyte_p),
         ("encoding", Atom),
@@ -119,7 +118,7 @@ class XTextProperty(Structure):
     ]
 
 
-class XClassHint(Structure):
+class XClassHint(CStruct):
     _fields_ = [("res_name", c_char_p), ("res_class", c_char_p)]
 
 
@@ -209,7 +208,10 @@ XGetClassHint.argtypes = [DisplayP, Window, POINTER(XClassHint)]
 XGetClassHint.restype = Status
 
 
-def client_msg(disp, win, msg, *data):
+def client_msg(
+    disp: "DisplayP", win: "Window", msg: str, *data: Tuple
+) -> Union["XEvent", None]:
+
     assert len(data) == 5
     event = XEvent()
     mask = SubstructureRedirectMask | SubstructureNotifyMask
@@ -233,13 +235,10 @@ def client_msg(disp, win, msg, *data):
     return None
 
 
-def show_desktop(disp, state):
-    return client_msg(
-        disp, XDefaultRootWindow(disp), "_NET_SHOWING_DESKTOP", state, 0, 0, 0, 0
-    )
+def get_property(
+    disp: "DisplayP", win: "Window", xa_prop_type: "Atom", prop_name: str
+) -> Union[Tuple["c_ubyte_p", int], None]:
 
-
-def get_property(disp, win, xa_prop_type, prop_name):
     xa_ret_type = Atom()
     ret_format = c_int()
     ret_nitems = c_ulong()
@@ -286,7 +285,7 @@ def get_property(disp, win, xa_prop_type, prop_name):
     return None
 
 
-def get_client_list(disp):
+def get_client_list(disp: "DisplayP") -> Union[List[int], None]:
     root = XDefaultRootWindow(disp)
     result = get_property(disp, root, XA_WINDOW, "_NET_CLIENT_LIST")
     if result:
@@ -307,17 +306,18 @@ def get_client_list(disp):
     return None
 
 
-def get_window_pid(disp, win):
+def get_window_pid(disp: "DisplayP", win: "Window") -> int:
+    """ Return process ID stored in _NET_WM_PID, if none, return -1 """
     result = get_property(disp, win, XA_CARDINAL, "_NET_WM_PID")
     if result:
         prop = c_ulong_p.from_buffer(result[0])
         pid = prop.contents.value
         XFree(prop)
         return pid
-    return "N/A"
+    return -1
 
 
-def get_window_title(disp, win):
+def get_window_title(disp: "DisplayP", win: "Window") -> str:
     xa_prop_type = Atom(XInternAtom(disp, b"UTF8_STRING", False))
     result = get_property(disp, win, xa_prop_type, "_NET_WM_NAME")
     if not result:
@@ -332,7 +332,7 @@ def get_window_title(disp, win):
     return "N/A"
 
 
-def get_window_class(disp, win):
+def get_window_class(disp: "DisplayP", win: "Window") -> str:
     ret = XClassHint()
     result = XGetClassHint(disp, win, byref(ret))
     if result:
@@ -341,7 +341,7 @@ def get_window_class(disp, win):
     return "N/A"
 
 
-def get_window_desktop_id(disp, win):
+def get_window_desktop_id(disp: "DisplayP", win: "Window") -> Union[int, None]:
     result = get_property(disp, win, XA_CARDINAL, "_NET_WM_DESKTOP")
     if not result:
         result = get_property(disp, win, XA_CARDINAL, "_WIN_WORKSPACE")
@@ -354,7 +354,7 @@ def get_window_desktop_id(disp, win):
     return None
 
 
-def get_window_geometry(disp, win):
+def get_window_geometry(disp: "DisplayP", win: "Window") -> Tuple[int]:
     junkroot = Window()
     x = c_int()
     y = c_int()
@@ -383,14 +383,14 @@ def get_window_geometry(disp, win):
     return x.value, y.value, wwidth.value, wheight.value, bw.value, depth.value
 
 
-def get_window_client_machine(disp, win):
+def get_window_client_machine(disp: "DisplayP", win: "Window") -> str:
     prop = XTextProperty()
     XGetWMClientMachine(disp, win, byref(prop))
     client_machine = c_char_p.from_buffer(prop.value)
     return client_machine.value.decode("ascii") or "N/A"
 
 
-def list_windows(disp):
+def list_windows(disp: "DisplayP") -> None:
     max_client_machine_len = 0
     max_class_name_len = 0
 
@@ -429,8 +429,10 @@ if __name__ == "__main__":
     display = XOpenDisplay(None)
     root = XDefaultRootWindow(display)
 
-    list_windows(display)
-    show_desktop(display, 1)
-    show_desktop(display, 0)
+    # list_windows(display)
+    # show_desktop(display, 1)
+    # show_desktop(display, 0)
+
+    print(change_number_of_desktops(display, 4))
 
     xlib.XCloseDisplay(display)
