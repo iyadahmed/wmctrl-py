@@ -235,6 +235,31 @@ def client_msg(
     return None
 
 
+def show_desktop(disp: "DisplayP", state: bool) -> Union["XEvent", None]:
+    root = XDefaultRootWindow(disp)
+    return client_msg(disp, root, "_NET_SHOWING_DESKTOP", state, 0, 0, 0, 0)
+
+
+def change_viewport(disp: "DisplayP", x: int, y: int) -> Union["XEvent", None]:
+    root = XDefaultRootWindow(disp)
+    return client_msg(disp, root, "_NET_DESKTOP_VIEWPORT", x, y, 0, 0, 0)
+
+
+def change_geometry(disp: "DisplayP", x: int, y: int) -> Union["XEvent", None]:
+    root = XDefaultRootWindow(disp)
+    return client_msg(disp, root, "_NET_DESKTOP_GEOMETRY", x, y, 0, 0, 0)
+
+
+def change_number_of_desktops(disp: "DisplayP", n: int) -> Union["XEvent", None]:
+    root = XDefaultRootWindow(disp)
+    return client_msg(disp, root, "_NET_NUMBER_OF_DESKTOPS", n, 0, 0, 0, 0)
+
+
+def switch_desktop(disp: "DisplayP", target: int) -> Union["XEvent", None]:
+    root = XDefaultRootWindow(disp)
+    return client_msg(disp, root, "_NET_CURRENT_DESKTOP", target, 0, 0, 0, 0)
+
+
 def get_property(
     disp: "DisplayP", win: "Window", xa_prop_type: "Atom", prop_name: str
 ) -> Union[Tuple["c_ubyte_p", int], None]:
@@ -433,6 +458,7 @@ if __name__ == "__main__":
     # show_desktop(display, 1)
     # show_desktop(display, 0)
 
-    print(change_number_of_desktops(display, 4))
+    # change_number_of_desktops(display, 2)
+    # switch_desktop(display, 1)
 
     xlib.XCloseDisplay(display)
