@@ -130,7 +130,7 @@ class XClassHint(CStruct):
 
 
 # Libs
-xlib = CDLL("libX11.so")
+xlib = CDLL("libX11.so.6")
 
 
 # Funcs
