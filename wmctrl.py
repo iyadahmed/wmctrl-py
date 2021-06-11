@@ -404,7 +404,7 @@ def get_client_list(disp: "DisplayP") -> Union[List[int], None]:
     if result:
         client_list, size = result
         client_list = WindowP.from_buffer(client_list)
-        clients = client_list[: size // sizeof(WindowP)]
+        clients = client_list[: size // sizeof(Window)]
         XFree(client_list)
         return clients
 
@@ -413,7 +413,7 @@ def get_client_list(disp: "DisplayP") -> Union[List[int], None]:
         client_list, size = result
         if client_list:
             client_list = WindowP.from_buffer(client_list)
-            clients = client_list[: size // sizeof(WindowP)]
+            clients = client_list[: size // sizeof(Window)]
             XFree(client_list)
             return clients
     return None
