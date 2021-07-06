@@ -1,23 +1,25 @@
 import sys
-from typing import Tuple, Union, List
 from ctypes import (
     CDLL,
     POINTER,
     byref,
-    Structure as CStruct,
-    Union as CUnion,
-    c_char,
     c_char_p,
-    c_short,
     c_int,
     c_long,
-    c_ubyte,
+    c_uint,
     c_ulong,
     c_void_p,
-    c_uint,
     sizeof,
 )
 
+# ctypes union collides
+from typing import List, Tuple, Union as TypingUnion
+
+from .xconsts import *
+from .xfuncs import *
+from .xtypes import *
+
+# TODO: error handler for XSetErrorHandler
 
 # TODO: parse command-line arguments
 VERBOSE = False
@@ -31,212 +33,29 @@ def p_verbose(*args, **kwargs):
         print(*args, file=sys.stderr, **kwargs)
 
 
-# Types
-Display = c_void_p
-DisplayP = POINTER(Display)
-Atom = XID = Time = c_ulong
-AtomP = POINTER(Atom)
-Drawable = Window = XID
-WindowP = POINTER(Window)
-Status = Bool = c_int
-
-c_int_p = POINTER(c_int)
-c_uint_p = POINTER(c_uint)
-c_ulong_p = POINTER(c_ulong)
-c_ubyte_p = POINTER(c_ubyte)
-
-
-# Consts
-XA_CARDINAL = Atom(6)
-XA_STRING = Atom(31)
-XA_WINDOW = Atom(33)
-XA_STRING = Atom(31)
-XA_WM_NAME = Atom(39)
-XA_WM_ICON_NAME = Atom(37)
-Success = 0
-BadWindow = 3
-BadAtom = 5
-BadValue = 2
-SubstructureRedirectMask = 1048576
-SubstructureNotifyMask = 524288
-ClientMessage = 33
-
-# XChangeProperty modes
-PropModeReplace = 0
-PropModePrepend = 1
-PropModeAppend = 2
-
 MAXLEN = 4096
 
 
-# Structs & Unions
-class XButtonEvent(CStruct):
-    _fields_ = [
-        ("type", c_int),
-        ("serial", c_ulong),
-        ("send_event", Bool),
-        ("display", DisplayP),
-        ("window", Window),
-        ("root", Window),
-        ("subwindow", Window),
-        ("time", Time),
-        ("x", c_int),
-        ("y", c_int),
-        ("x_root", c_int),
-        ("y_root", c_int),
-        ("state", c_uint),
-        ("button", c_uint),
-        ("same_screen", Bool),
-    ]
+class XError(Exception):
+    """Generic XLib error"""
+
+    pass
 
 
-class _data(CUnion):
-    _fields_ = [("b", c_char * 20), ("s", c_short * 10), ("l", c_long * 5)]
-
-
-class XClientMessageEvent(CStruct):
-    _fields_ = [
-        ("type", c_int),
-        ("serial", c_ulong),
-        ("send_event", Bool),
-        ("display", DisplayP),
-        ("window", Window),
-        ("message_type", Atom),
-        ("format", c_int),
-        ("data", _data),
-    ]
-
-
-class XEvent(CUnion):
-    _fields_ = [
-        ("type", c_int),
-        ("xbutton", XButtonEvent),
-        ("xclient", XClientMessageEvent),
-        ("pad", c_long * 24),
-    ]
-
-
-class XTextProperty(CStruct):
-    _fields_ = [
-        ("value", c_ubyte_p),
-        ("encoding", Atom),
-        ("format", c_int),
-        ("nitems", c_ulong),
-    ]
-
-
-class XClassHint(CStruct):
-    _fields_ = [("res_name", c_char_p), ("res_class", c_char_p)]
-
-
-# Libs
-xlib = CDLL("libX11.so.6")
-
-
-# Funcs
-XFree = xlib.XFree
-XFree.argtypes = [c_void_p]
-XFree.restype = None
-
-XOpenDisplay = xlib.XOpenDisplay
-XOpenDisplay.argtypes = [c_char_p]
-XOpenDisplay.restype = DisplayP
-
-XCloseDisplay = xlib.XCloseDisplay
-XCloseDisplay.argtypes = [DisplayP]
-XCloseDisplay.restype = None
-
-XDefaultRootWindow = xlib.XDefaultRootWindow
-XDefaultRootWindow.argtypes = [DisplayP]
-XDefaultRootWindow.restype = Window
-
-XInternAtom = xlib.XInternAtom
-XInternAtom.argtypes = [DisplayP, c_char_p, Bool]
-XInternAtom.restype = Atom
-
-XSendEvent = xlib.XSendEvent
-XSendEvent.argtypes = [DisplayP, Window, Bool, c_long, POINTER(XEvent)]
-XSendEvent.restype = Status
-
-XGetWindowProperty = xlib.XGetWindowProperty
-XGetWindowProperty.argtypes = [
-    DisplayP,
-    Window,
-    Atom,
-    c_long,
-    c_long,
-    Bool,
-    Atom,
-    AtomP,
-    c_int_p,
-    c_ulong_p,
-    c_ulong_p,
-    POINTER(c_ubyte_p),
-]
-XGetWindowProperty.restype = Status
-
-XChangeProperty = xlib.XChangeProperty
-XChangeProperty.argtypes = [
-    DisplayP,
-    Window,
-    Atom,
-    Atom,
-    c_int,
-    c_int,
-    c_char_p,
-    c_int,
-]
-XChangeProperty.restype = None
-
-XDeleteProperty = xlib.XDeleteProperty
-XDeleteProperty.argtypes = [DisplayP, Window, Atom]
-XDeleteProperty.restype = None
-
-XGetGeometry = xlib.XGetGeometry
-XGetGeometry.argtypes = [
-    DisplayP,
-    Drawable,
-    WindowP,
-    c_int_p,
-    c_int_p,
-    c_uint_p,
-    c_uint_p,
-    c_uint_p,
-    c_uint_p,
-]
-XGetGeometry.restype = Status
-
-XTranslateCoordinates = xlib.XTranslateCoordinates
-XTranslateCoordinates.argtypes = [
-    DisplayP,
-    Window,
-    Window,
-    c_int,
-    c_int,
-    c_int_p,
-    c_int_p,
-    WindowP,
-]
-XTranslateCoordinates.restype = Bool
-
-XFetchName = xlib.XFetchName
-XFetchName.argtypes = [DisplayP, Window, POINTER(c_char_p)]
-XFetchName.restype = Status
-
-XGetWMClientMachine = xlib.XGetWMClientMachine
-XGetWMClientMachine.argtypes = [DisplayP, Window, POINTER(XTextProperty)]
-XGetWMClientMachine.restype = Status
-
-XGetClassHint = xlib.XGetClassHint
-XGetClassHint.argtypes = [DisplayP, Window, POINTER(XClassHint)]
-XGetClassHint.restype = Status
+# TODO: more exception classes
 
 
 def client_msg(
-    disp: "DisplayP", win: "Window", msg: str, *data: Tuple
-) -> Union["XEvent", None]:
+    disp: "DisplayP",
+    win: "Window",
+    msg: str,
+    data0: int,
+    data1: int,
+    data2: int,
+    data3: int,
+    data4: int,
+) -> None:
 
-    assert len(data) == 5
     event = XEvent()
     mask = SubstructureRedirectMask | SubstructureNotifyMask
     event.xclient.type = ClientMessage
@@ -245,41 +64,48 @@ def client_msg(
     event.xclient.message_type = XInternAtom(disp, msg.encode("ascii"), False)
     event.xclient.window = win
     event.xclient.format = 32
-    event.xclient.data.l[0] = data[0]
-    event.xclient.data.l[1] = data[1]
-    event.xclient.data.l[2] = data[2]
-    event.xclient.data.l[3] = data[3]
-    event.xclient.data.l[4] = data[4]
+    event.xclient.data.l[0] = data0
+    event.xclient.data.l[1] = data1
+    event.xclient.data.l[2] = data2
+    event.xclient.data.l[3] = data3
+    event.xclient.data.l[4] = data4
 
     result = XSendEvent(disp, XDefaultRootWindow(disp), False, mask, byref(event))
-    if result:
-        return event
-
-    print("Cannot send %s event." % msg, file=sys.stderr)
-    return None
+    # TODO: raise error on BadWindow and BadValue
+    if result == 0:
+        raise XError("Conversion to wire protocol format failed")
 
 
-def show_desktop(disp: "DisplayP", state: bool) -> Union["XEvent", None]:
+def show_desktop(disp: "DisplayP", state: bool) -> None:
     root = XDefaultRootWindow(disp)
-    return client_msg(disp, root, "_NET_SHOWING_DESKTOP", state, 0, 0, 0, 0)
+    try:
+        client_msg(disp, root, "_NET_SHOWING_DESKTOP", state, 0, 0, 0, 0)
+    except XError:
+        raise XError("Showing desktop failed")
 
 
-def change_viewport(disp: "DisplayP", x: int, y: int) -> Union["XEvent", None]:
+def change_viewport(disp: "DisplayP", x: int, y: int) -> TypingUnion["XEvent", None]:
     root = XDefaultRootWindow(disp)
-    return client_msg(disp, root, "_NET_DESKTOP_VIEWPORT", x, y, 0, 0, 0)
+    try:
+        client_msg(disp, root, "_NET_DESKTOP_VIEWPORT", x, y, 0, 0, 0)
+    except XError:
+        raise XError("Changing viewport failed")
 
 
-def change_geometry(disp: "DisplayP", x: int, y: int) -> Union["XEvent", None]:
+def change_geometry(disp: "DisplayP", x: int, y: int) -> TypingUnion["XEvent", None]:
     root = XDefaultRootWindow(disp)
-    return client_msg(disp, root, "_NET_DESKTOP_GEOMETRY", x, y, 0, 0, 0)
+    try:
+        client_msg(disp, root, "_NET_DESKTOP_GEOMETRY", x, y, 0, 0, 0)
+    except XError:
+        pass
 
 
-def change_number_of_desktops(disp: "DisplayP", n: int) -> Union["XEvent", None]:
+def change_number_of_desktops(disp: "DisplayP", n: int) -> TypingUnion["XEvent", None]:
     root = XDefaultRootWindow(disp)
     return client_msg(disp, root, "_NET_NUMBER_OF_DESKTOPS", n, 0, 0, 0, 0)
 
 
-def switch_desktop(disp: "DisplayP", target: int) -> Union["XEvent", None]:
+def switch_desktop(disp: "DisplayP", target: int) -> TypingUnion["XEvent", None]:
     root = XDefaultRootWindow(disp)
     return client_msg(disp, root, "_NET_CURRENT_DESKTOP", target, 0, 0, 0, 0)
 
@@ -348,9 +174,37 @@ def set_window_title(disp: "DisplayP", win: "Window", title: str, mode: str) -> 
         )
 
 
+def window_to_desktop(
+    disp: "DisplayP", win: "Window", desktop: c_int
+) -> TypingUnion["XEvent", None]:
+    """Move a window to a specified desktop
+
+    Args:
+        disp (DisplayP): The connection to the X server
+        win (Window): Window to be moved
+        desktop (c_int): Number of target desktop, -1 for current
+
+    Returns:
+        XEvent | None: [description]
+    """
+    root = XDefaultRootWindow(disp)
+
+    if desktop == -1:
+        cur_desktop = get_property(disp, root, XA_CARDINAL, "_NET_CURRENT_DESKTOP")
+        if cur_desktop is None:
+            cur_desktop = get_property(disp, root, XA_CARDINAL, "_WIN_WORKSPACE")
+            if cur_desktop is None:
+                p_verbose(
+                    "Cannot get current desktop properties. "
+                    "(_NET_CURRENT_DESKTOP or _WIN_WORKSPACE property)"
+                    "\n"
+                )
+                # TODO
+
+
 def get_property(
     disp: "DisplayP", win: "Window", xa_prop_type: "Atom", prop_name: str
-) -> Union[Tuple["c_ubyte_p", int], None]:
+) -> TypingUnion[Tuple["c_ubyte_p", int], None]:
 
     xa_ret_type = Atom()
     ret_format = c_int()
@@ -398,7 +252,7 @@ def get_property(
     return None
 
 
-def get_client_list(disp: "DisplayP") -> Union[List[int], None]:
+def get_client_list(disp: "DisplayP") -> TypingUnion[List[int], None]:
     root = XDefaultRootWindow(disp)
     result = get_property(disp, root, XA_WINDOW, "_NET_CLIENT_LIST")
     if result:
@@ -420,7 +274,7 @@ def get_client_list(disp: "DisplayP") -> Union[List[int], None]:
 
 
 def get_window_pid(disp: "DisplayP", win: "Window") -> int:
-    """ Return process ID stored in _NET_WM_PID, if none, return -1 """
+    """Return process ID stored in _NET_WM_PID, if none, return -1"""
     result = get_property(disp, win, XA_CARDINAL, "_NET_WM_PID")
     if result:
         prop = c_ulong_p.from_buffer(result[0])
@@ -454,7 +308,7 @@ def get_window_class(disp: "DisplayP", win: "Window") -> str:
     return "N/A"
 
 
-def get_window_desktop_id(disp: "DisplayP", win: "Window") -> Union[int, None]:
+def get_window_desktop_id(disp: "DisplayP", win: "Window") -> TypingUnion[int, None]:
     result = get_property(disp, win, XA_CARDINAL, "_NET_WM_DESKTOP")
     if not result:
         result = get_property(disp, win, XA_CARDINAL, "_WIN_WORKSPACE")
@@ -536,21 +390,3 @@ def list_windows(disp: "DisplayP") -> None:
             print(" %-*s" % (max_class_name_len, class_out), end="")
 
         print(" %*s %s" % (max_client_machine_len, client_machine, title_out))
-
-
-if __name__ == "__main__":
-    display = XOpenDisplay(None)
-    root = XDefaultRootWindow(display)
-
-    # list_windows(display)
-    # show_desktop(display, 1)
-    # show_desktop(display, 0)
-
-    # change_number_of_desktops(display, 2)
-    # switch_desktop(display, 1)
-
-    # Rename all windows to foo
-    for w in get_client_list(display):
-        set_window_title(display, w, "foo", "T")
-
-    xlib.XCloseDisplay(display)
