@@ -12,7 +12,7 @@ from ctypes import (
     sizeof,
 )
 
-# ctypes union collides
+# ctypes Union collides
 from typing import List, Tuple, Union as TypingUnion
 
 from .xconsts import *
